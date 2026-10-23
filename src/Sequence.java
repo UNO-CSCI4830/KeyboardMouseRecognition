@@ -1,4 +1,5 @@
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 // A list of actions in order that makes up a workflow
@@ -18,17 +19,30 @@ public class Sequence {
     }
 
     public Sequence(List<Action> actions, String windowInfo) {
-        this.actions = new ArrayList<>(actions);
-        this.windowInfo = windowInfo;
+        if (actions == null) {
+            throw new IllegalArgumentException("Actions list can't be null");
+        }
+        this.actions = new ArrayList<>();
+        for (Action action : actions) {
+            if (action == null) {
+                throw new IllegalArgumentException("Can't add a null action");
+            }
+            this.actions.add(action);
+        }
+        this.windowInfo = (windowInfo == null) ? "" : windowInfo;
         id = -1;
     }
 
     public void addAction(Action action) {
+        if (action == null) {
+            throw new IllegalArgumentException("Can't add a null action");
+        }
         actions.add(action);
     }
 
+    // read-only so other classes have to use addAction() to change the list
     public List<Action> getActions() {
-        return actions;
+        return Collections.unmodifiableList(actions);
     }
 
     public int size() {
@@ -39,7 +53,7 @@ public class Sequence {
     // PatternDetector uses this
     public boolean startsWith(List<Action> prefix) {
         // need at least one action, and there has to be something left to replay
-        if (prefix.size() == 0 || prefix.size() >= actions.size()) {
+        if (prefix == null || prefix.size() == 0 || prefix.size() >= actions.size()) {
             return false;
         }
         for (int i = 0; i < prefix.size(); i++) {
@@ -60,15 +74,15 @@ public class Sequence {
         return remaining;
     }
 
-    public void addTimesSeen() {
+    public void incrementTimesSeen() {
         timesSeen++;
     }
 
-    public void addApproval() {
+    public void incrementApprovals() {
         approvals++;
     }
 
-    public void addDismissal() {
+    public void incrementDismissals() {
         dismissals++;
     }
 
@@ -89,7 +103,7 @@ public class Sequence {
     }
 
     public void setWindowInfo(String windowInfo) {
-        this.windowInfo = windowInfo;
+        this.windowInfo = (windowInfo == null) ? "" : windowInfo;
     }
 
     public int getId() {
