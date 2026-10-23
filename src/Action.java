@@ -7,12 +7,17 @@ public class Action {
     private long timestamp; // not really used yet, might need it in sprint 2
 
     public Action(ActionType type, String value) {
-        this.type = type;
-        this.value = value;
-        this.timestamp = System.currentTimeMillis();
+        this(type, value, System.currentTimeMillis());
     }
 
     public Action(ActionType type, String value, long timestamp) {
+        // type and value can't be null since equals() and hashCode() use them
+        if (type == null) {
+            throw new IllegalArgumentException("Action type can't be null");
+        }
+        if (value == null) {
+            throw new IllegalArgumentException("Action value can't be null");
+        }
         this.type = type;
         this.value = value;
         this.timestamp = timestamp;
@@ -32,6 +37,7 @@ public class Action {
 
     // two actions are the same if type and value match
     // we ignore timestamp so doing the steps slower or faster still counts
+    // (type and value are never null because the constructor checks them)
     @Override
     public boolean equals(Object obj) {
         if (!(obj instanceof Action)) {
