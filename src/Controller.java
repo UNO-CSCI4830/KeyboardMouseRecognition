@@ -1,20 +1,23 @@
 public class Controller {
 
+    private InputTracker inputTracker;
     private PatternDetector patternDetector;
     private ReplayEngine replayEngine;
     private NotifPopup notifPopup;
 
-    public Controller(PatternDetector patternDetector, ReplayEngine replayEngine, NotifPopup notifPopup) {
+    public Controller(PatternDetector patternDetector, ReplayEngine replayEngine, NotifPopup notifPopup, InputTracker inputTracker) {
         this.patternDetector = patternDetector;
         this.replayEngine = replayEngine;
         this.notifPopup = notifPopup;
+        this.inputTracker = inputTracker; 
     }
     // This should be called by InputTracker and pass the Action Object created from user input. 
     public void handleAction(Action action) {
+
         // Take in the action object made from the user input, compare with SequenceStore,
-        // And then return the matched Sequence. 
+        // And then return the matched Sequence. Don't do anything if there wasn't a match. 
+
         Sequence match = patternDetector.processAction(action);
-        // Don't do anything if there wasn't a match. 
         if (match == null) {
             return;
         }
@@ -26,10 +29,17 @@ public class Controller {
         * See Method on Line 69 of Sequence. 
         * This means PatternDetector should have a buffer (current list) of actions,
         * The buffer should also be cleared on approval (but not on dismissal)
+        * inputTracker.setPaused(true) makes it so user inputs are not recorded during replay.
+        * Setting it to false resumes recording user inputs. 
         */
         if (approved) {
-            replayEngine.replay(match.getRemainingActions(patternDetector.getMatchLength()));
-            patternDetector.clearBuffer();
+            inputTracker.setPaused(true);
+            try {
+                replayEngine.replay(match.getRemainingActions(patternDetector.getMatchLength()));
+                patternDetector.clearBuffer();
+            } finally {
+                inputTracker.setPaused(false);
+            }
         }
     }
 }

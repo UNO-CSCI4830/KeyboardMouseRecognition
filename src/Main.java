@@ -13,11 +13,13 @@ public class Main {
         // User interface
         NotifPopup notifPopup = new NotifPopup();
 
-        // Application coordinator
-        Controller controller = new Controller(patternDetector, replayEngine, notifPopup);
-
         // Input capture
-        InputTracker inputTracker = new InputTracker(controller);
+        InputTracker inputTracker = new InputTracker();
+
+        // Application coordinator
+        Controller controller = new Controller(patternDetector, replayEngine, notifPopup, inputTracker);
+
+        inputTracker.setListener(controller::handleAction);
 
         System.out.println("Automation Assistant Started");
 
@@ -28,7 +30,8 @@ public class Main {
         sequence_1.addAction(new Action(ActionType.KEY_PRESS, "C"));
         sequence_1.addAction(new Action(ActionType.KEY_RELEASE, "C"));
         sequence_1.addAction(new Action(ActionType.KEY_RELEASE, "CTRL"));
-        sequence_1.addAction(new Action(ActionType.MOUSE_CLICK, "LEFT"));
+        // Will have to fine tune click coords for demo showcase
+        sequence_1.addAction(new Action(ActionType.MOUSE_CLICK, "LEFT@500,300"));
         sequence_1.addAction(new Action(ActionType.KEY_PRESS, "CTRL"));
         sequence_1.addAction(new Action(ActionType.KEY_PRESS, "V"));
         sequence_1.addAction(new Action(ActionType.KEY_RELEASE, "V"));
@@ -50,8 +53,6 @@ public class Main {
         sequence_2.addAction(new Action(ActionType.KEY_RELEASE, "1"));
         sequence_2.addAction(new Action(ActionType.KEY_PRESS, "1"));
         sequence_2.addAction(new Action(ActionType.KEY_RELEASE, "1"));
-        sequence_2.addAction(new Action(ActionType.MOUSE_MOVE, "500,300"));
-        sequence_2.addAction(new Action(ActionType.MOUSE_CLICK, "LEFT"));
         sequence_2.addAction(new Action(ActionType.MOUSE_SCROLL, "-3"));
 
         sequenceStore.save(sequence_1);

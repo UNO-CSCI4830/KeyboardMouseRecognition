@@ -90,9 +90,22 @@ public class ReplayEngine {
         }
     }
 
-    private void clickMouse(String button) {
+    private void clickMouse(String value) {
 
-        switch (button.toUpperCase()) {
+        String[] parts = value.split("@");
+
+        String click_button = parts[0];
+
+        // Move to recorded location first if coordinates exist.
+        if (parts.length == 2) {
+            moveMouse(parts[1]);
+        }
+
+        if (parts.length > 2) {
+            throw new IllegalArgumentException("Invalid click format: " + value);
+        }
+
+        switch (click_button.toUpperCase()) {
 
             case "LEFT":
                 robot.mousePress(InputEvent.BUTTON1_DOWN_MASK);
@@ -110,7 +123,7 @@ public class ReplayEngine {
                 break;
 
             default:
-                throw new IllegalArgumentException("Unsupported mouse button: " + button);
+                throw new IllegalArgumentException("Unsupported mouse button: " + value);
         }
     }
 
