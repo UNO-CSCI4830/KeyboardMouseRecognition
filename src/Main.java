@@ -28,6 +28,7 @@ public class Main {
         sequence_1.addAction(new Action(ActionType.KEY_PRESS, "C"));
         sequence_1.addAction(new Action(ActionType.KEY_RELEASE, "C"));
         sequence_1.addAction(new Action(ActionType.KEY_RELEASE, "CTRL"));
+        sequence_1.addAction(new Action(ActionType.MOUSE_CLICK, "LEFT"));
         sequence_1.addAction(new Action(ActionType.KEY_PRESS, "CTRL"));
         sequence_1.addAction(new Action(ActionType.KEY_PRESS, "V"));
         sequence_1.addAction(new Action(ActionType.KEY_RELEASE, "V"));
@@ -51,7 +52,7 @@ public class Main {
         sequence_2.addAction(new Action(ActionType.KEY_RELEASE, "1"));
         sequence_2.addAction(new Action(ActionType.MOUSE_MOVE, "500,300"));
         sequence_2.addAction(new Action(ActionType.MOUSE_CLICK, "LEFT"));
-        sequence_2.addAction(new Action(ActionType.MOUSE_SCROLL, "-5"));
+        sequence_2.addAction(new Action(ActionType.MOUSE_SCROLL, "-3"));
 
         sequenceStore.save(sequence_1);
         sequenceStore.save(sequence_2);
