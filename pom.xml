@@ -13,6 +13,7 @@
         <!-- Java version the whole team uses -->
         <maven.compiler.release>17</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <javafx.version>21.0.5</javafx.version>
     </properties>
 
     <dependencies>
@@ -23,7 +24,14 @@
             <version>2.2.2</version>
         </dependency>
 
-        <!-- Add JavaFX (NotifPopup) and SQLite (Sprint 2) here later -->
+        <!-- JavaFX for the suggestion popup (NotifPopup) -->
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-controls</artifactId>
+            <version>${javafx.version}</version>
+        </dependency>
+
+        <!-- Add SQLite here in Sprint 2 -->
     </dependencies>
 
     <build>
