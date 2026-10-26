@@ -1,6 +1,5 @@
 import java.awt.Robot;
 import java.awt.event.InputEvent;
-import java.awt.event.KeyEvent;
 import java.util.List;
 
 public class ReplayEngine {
@@ -27,11 +26,19 @@ public class ReplayEngine {
         switch(action.getType()) {
 
             case KEY_PRESS:
-                robot.keyPress(keyCode(action.getValue()));
+                if (!action.hasKeyCode()) {
+                    throw new IllegalArgumentException("Missing key code for: " + action);
+                }
+
+                robot.keyPress(action.getKeyCode());
                 break;
 
             case KEY_RELEASE:
-                robot.keyRelease(keyCode(action.getValue()));
+                if (!action.hasKeyCode()) {
+                    throw new IllegalArgumentException("Missing key code for: " + action);
+                }
+
+                robot.keyRelease(action.getKeyCode());
                 break;
 
             case MOUSE_MOVE:
@@ -51,58 +58,20 @@ public class ReplayEngine {
         }
     }
 
-    private int keyCode(String value) {
-
-        switch (value.toUpperCase()) {
-
-            case "CTRL":
-                return KeyEvent.VK_CONTROL;
-
-            case "SHIFT":
-                return KeyEvent.VK_SHIFT;
-
-            case "A":
-                return KeyEvent.VK_A;
-
-            case "B":
-                return KeyEvent.VK_B;
-
-            case "C":
-                return KeyEvent.VK_C;
-
-            case "V":
-                return KeyEvent.VK_V;
-
-            case "1":
-                return KeyEvent.VK_1;
-
-            case "5":
-                return KeyEvent.VK_5;
-
-            case "6":
-                return KeyEvent.VK_6;
-
-            case "=":
-                return KeyEvent.VK_EQUALS;
-
-            default:
-                throw new IllegalArgumentException("Unsupported key: " + value);
-        }
-    }
 
     private void clickMouse(String value) {
 
         String[] parts = value.split("@");
+
+        if (parts.length > 2) {
+            throw new IllegalArgumentException("Invalid click format: " + value);
+        }
 
         String click_button = parts[0];
 
         // Move to recorded location first if coordinates exist.
         if (parts.length == 2) {
             moveMouse(parts[1]);
-        }
-
-        if (parts.length > 2) {
-            throw new IllegalArgumentException("Invalid click format: " + value);
         }
 
         switch (click_button.toUpperCase()) {
