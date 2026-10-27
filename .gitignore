@@ -1,2 +1,4 @@
 # Ignore entire intelliJ idea
 .idea/
+# Ignore built .class files
+target/
