@@ -21,25 +21,26 @@ public class Controller {
         if (match == null) {
             return;
         }
+        inputTracker.setPaused(true);
         // Make the Notification for approval show up, and return true or false to whether user wants automation
-        boolean approved = notifPopup.show(match);
-        /** If true, ReplayEngine will replay the remaining actions in the matched sequence. 
-        * .getMatchLength() or an equivalent method in PatternDetector will get the length of the prefix of the sequence.
-        * Which is then used to determine what section of the sequence is the remainder and should be executed.
-        * See Method on Line 69 of Sequence. 
-        * This means PatternDetector should have a buffer (current list) of actions,
-        * The buffer should also be cleared on approval (but not on dismissal)
-        * inputTracker.setPaused(true) makes it so user inputs are not recorded during replay.
-        * Setting it to false resumes recording user inputs. 
-        */
-        if (approved) {
-            inputTracker.setPaused(true);
-            try {
+        try {
+            boolean approved = notifPopup.show(match);
+            /** If true, ReplayEngine will replay the remaining actions in the matched sequence. 
+            * .getMatchLength() or an equivalent method in PatternDetector will get the length of the prefix of the sequence.
+            * Which is then used to determine what section of the sequence is the remainder and should be executed.
+            * See Method on Line 69 of Sequence. 
+            * This means PatternDetector should have a buffer (current list) of actions,
+            * The buffer should also be cleared on approval (but not on dismissal)
+            * inputTracker.setPaused(true) makes it so user inputs are not recorded during replay.
+            * Setting it to false resumes recording user inputs. 
+            */
+            if (approved) {
                 replayEngine.replay(match.getRemainingActions(patternDetector.getMatchLength()));
                 patternDetector.clearBuffer();
-            } finally {
-                inputTracker.setPaused(false);
-            }
+            } 
+        } finally {
+            inputTracker.setPaused(false);
         }
     }
 }
+
