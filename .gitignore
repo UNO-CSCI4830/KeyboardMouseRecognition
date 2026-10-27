@@ -1,0 +1,6 @@
+# Ignore entire intelliJ idea
+.idea/
+# Ignore built .class files
+target/
+# Ignore maven-shade build artifacts
+dependency-reduced-pom.xml
