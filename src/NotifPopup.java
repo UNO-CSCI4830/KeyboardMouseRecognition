@@ -16,8 +16,16 @@ public class NotifPopup {
     private volatile int timeoutMs  = DEFAULT_TIMEOUT_MS;; // changeable timeout setting
 
     public NotifPopup() {
+        String LAF;
+        if (System.getProperty("os.name", "").toLowerCase().contains("linux")) {
+            // GTK set explicitly on Linux [i love you archwiki]
+            LAF = "com.sun.java.swing.plaf.gtk.GTKLookAndFeel";
+        } else {
+            // native LAF on [everywhere else (win32)]
+            LAF = UIManager.getSystemLookAndFeelClassName();
+        }
         try {
-            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+            UIManager.setLookAndFeel(LAF);
         } catch (Exception ignored) {}
     } //UI styling
 
