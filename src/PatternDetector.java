@@ -2,7 +2,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class PatternDetector {
-
+    //arbitrary minimum
+    private static final int MIN_MATCH_LENGTH = 3;
     private final SequenceStore sequenceStore;
     private final List<Action> buffer = new ArrayList<>();
     private int matchLength;
@@ -16,22 +17,27 @@ public class PatternDetector {
 
     //Adds an action and checks if the buffer actions start a saved sequence.
     public Sequence processAction(Action action) {
-        if (action == null) {
-            throw new IllegalArgumentException("Action cannot be null");
-        }
-
-        buffer.add(action);
-        Sequence match = findBestMatch();
-
-        //Removes the oldest action until the buffer can start a saved sequence.
-        while (match == null && !buffer.isEmpty()) {
-            buffer.remove(0);
-            match = findBestMatch();
-        }
-
-        matchLength = (match == null) ? 0 : buffer.size();
-        return match;
+    if (action == null) {
+        throw new IllegalArgumentException("Action cannot be null");
     }
+
+    buffer.add(action);
+    Sequence match = findBestMatch();
+
+    // Remove the oldest action until the buffer can start a saved sequence.
+    while (match == null && !buffer.isEmpty()) {
+        buffer.remove(0);
+        match = findBestMatch();
+    }
+
+    if (match != null && buffer.size() < MIN_MATCH_LENGTH) {
+        match = null;
+    }
+
+    matchLength = (match == null) ? 0 : buffer.size();
+    return match;
+}
+    
     //Gets the number of match actions so the remaining actions can replay.
     public int getMatchLength() {
         return matchLength;
