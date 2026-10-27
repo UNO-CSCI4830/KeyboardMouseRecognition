@@ -54,7 +54,7 @@ public class NotifPopup {
         actionList.setEditable(false);
 
         Object message = new Object[] {
-                "Automate these " +match.size()+ " actions? \uD83E\uDD7A",
+                "Automate these " +match.size()+ " actions?",
                 new JScrollPane(actionList)
         };
         JOptionPane pane = new JOptionPane(
