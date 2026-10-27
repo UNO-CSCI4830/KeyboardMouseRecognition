@@ -1,0 +1,21 @@
+# Ignore user-specific files and workspace layouts
+.idea/workspace.xml
+.idea/tasks.xml
+.idea/dictionaries/
+.idea/shelf/
+
+# Ignore sensitive database credentials and local driver maps
+.idea/dataSources/
+.idea/dataSources.ids
+.idea/dataSources.xml
+.idea/jsLibraryMappings.xml
+
+# Ignore temporary build and plugin artifacts
+.idea/caches/
+.idea/libraries/
+
+# For file-based project formats
+*.iws
+
+# (Optional) If using Android Studio, ignore build variants
+.idea/assetWizardSettings.xml
