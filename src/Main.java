@@ -5,6 +5,10 @@ public class Main {
 
     public static void main(String[] args) {
 
+        // Initialize Swing UI components to not look terrible
+        System.setProperty("awt.useSystemAAFontSettings", "on");
+        System.setProperty("swing.aatext", "true");
+
         // Core data/storage components
         SequenceStore sequenceStore = new SequenceStore();
 
