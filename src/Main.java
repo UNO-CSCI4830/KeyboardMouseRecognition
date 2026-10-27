@@ -62,9 +62,9 @@ public class Main {
 
         sequence_2.addAction(new Action(ActionType.KEY_PRESS, "SHIFT",KeyEvent.VK_SHIFT, System.currentTimeMillis()));
 
-        sequence_2.addAction(new Action(ActionType.KEY_PRESS, "=",KeyEvent.VK_EQUALS, System.currentTimeMillis()));
+        sequence_2.addAction(new Action(ActionType.KEY_PRESS, "EQUALS",KeyEvent.VK_EQUALS, System.currentTimeMillis()));
 
-        sequence_2.addAction(new Action(ActionType.KEY_RELEASE, "=",KeyEvent.VK_EQUALS, System.currentTimeMillis()));
+        sequence_2.addAction(new Action(ActionType.KEY_RELEASE, "EQUALS",KeyEvent.VK_EQUALS, System.currentTimeMillis()));
 
         sequence_2.addAction(new Action(ActionType.KEY_RELEASE, "SHIFT",KeyEvent.VK_SHIFT, System.currentTimeMillis()));
 
@@ -72,9 +72,9 @@ public class Main {
 
         sequence_2.addAction(new Action(ActionType.KEY_RELEASE, "6",KeyEvent.VK_6, System.currentTimeMillis()));
 
-        sequence_2.addAction(new Action(ActionType.KEY_PRESS, "=",KeyEvent.VK_EQUALS, System.currentTimeMillis()));
+        sequence_2.addAction(new Action(ActionType.KEY_PRESS, "EQUALS",KeyEvent.VK_EQUALS, System.currentTimeMillis()));
 
-        sequence_2.addAction(new Action(ActionType.KEY_RELEASE, "=",KeyEvent.VK_EQUALS, System.currentTimeMillis()));
+        sequence_2.addAction(new Action(ActionType.KEY_RELEASE, "EQUALS",KeyEvent.VK_EQUALS, System.currentTimeMillis()));
 
         sequence_2.addAction(new Action(ActionType.KEY_PRESS, "1",KeyEvent.VK_1, System.currentTimeMillis()));
 
