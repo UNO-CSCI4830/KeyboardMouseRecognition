@@ -1,10 +1,15 @@
 import java.awt.Robot;
 import java.awt.event.InputEvent;
 import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
 public class ReplayEngine {
 
     private Robot robot;
+
+    private volatile boolean stopRequested = false;
+    private final Set<Integer> keysHeld = new HashSet<>();
 
     public ReplayEngine() {
         try {
@@ -14,10 +19,28 @@ public class ReplayEngine {
         }
     }
 
+    public void stop() {
+        stopRequested = true;
+    }
+
     public void replay(List<Action> actions) {
-        for (Action action : actions) {
-            execute(action);
-            robot.delay(30);
+        stopRequested = false;
+
+        try {
+            for (Action action : actions) {
+                if (stopRequested) {
+                    break;
+                }
+
+                execute(action);
+                robot.delay(30);
+            }
+        } finally {
+            for (int keyCode : keysHeld) {
+                robot.keyRelease(keyCode);
+            }
+
+            keysHeld.clear();
         }
     }
 
@@ -31,6 +54,7 @@ public class ReplayEngine {
                 }
 
                 robot.keyPress(action.getKeyCode());
+                keysHeld.add(action.getKeyCode());
                 break;
 
             case KEY_RELEASE:
@@ -39,6 +63,7 @@ public class ReplayEngine {
                 }
 
                 robot.keyRelease(action.getKeyCode());
+                keysHeld.remove(action.getKeyCode());
                 break;
 
             case MOUSE_MOVE:
