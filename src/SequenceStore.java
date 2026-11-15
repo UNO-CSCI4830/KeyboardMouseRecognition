@@ -1,19 +1,331 @@
+import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Collections;
 
 public class SequenceStore {
 
-    private List<Sequence> sequences = new ArrayList<>();
-    public void save(Sequence sequence) {
-        if (sequence == null) {
-            throw new IllegalArgumentException("Can't save a null sequence");
+    private final Connection connection;
+
+    public SequenceStore(String databaseFile) {
+
+        try {
+            connection = DriverManager.getConnection("jdbc:sqlite:" + databaseFile);
+
+        } catch (SQLException e) {
+            throw new RuntimeException("Unable to connect to SQLite database.",e);
         }
-        sequences.add(sequence);
+    }
+
+    public void saveSequence(Sequence sequence) {
+
+        try {
+
+            connection.setAutoCommit(false);
+
+            String sequenceSql = "INSERT INTO Sequence DEFAULT VALUES";
+
+            PreparedStatement sequenceStmt = connection.prepareStatement(sequenceSql, Statement.RETURN_GENERATED_KEYS);
+
+            sequenceStmt.executeUpdate();
+
+            ResultSet generatedKeys = sequenceStmt.getGeneratedKeys();
+
+            if (!generatedKeys.next()) {
+                throw new SQLException("Failed to create sequence.");
+            }
+
+            int sequenceId = generatedKeys.getInt(1);
+
+            sequence.setId(sequenceId);
+
+            String actionSql =
+                    """
+                    INSERT INTO Action
+                    (
+                        SequenceID,
+                        ActionOrder,
+                        ActionType,
+                        ActionValue,
+                        KeyCode,
+                        DelayMs,
+                        WindowInfo
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """;
+
+            PreparedStatement actionStmt = connection.prepareStatement(actionSql);
+
+            List<Action> actions = sequence.getActions();
+
+            for (int i = 0; i < actions.size(); i++) {
+
+                Action action = actions.get(i);
+
+                actionStmt.setInt(1, sequenceId);
+
+                actionStmt.setInt(2, i);
+
+                actionStmt.setString(3, action.getType().name());
+
+                actionStmt.setString(4, action.getValue());
+
+                if (action.hasKeyCode()) {
+                    actionStmt.setInt(5, action.getKeyCode());
+                } else {
+                    actionStmt.setNull(5, Types.INTEGER);
+                }
+
+                actionStmt.setInt(6, action.getDelayMs());
+
+                actionStmt.setString(7, action.getWindowInfo());
+
+                actionStmt.addBatch();
+            }
+
+            actionStmt.executeBatch();
+
+            connection.commit();
+
+        } catch (SQLException e) {
+
+            try {
+                connection.rollback();
+            } catch (SQLException ignored) {
+            }
+
+            throw new RuntimeException("Failed to save sequence.", e);
+        }
+    }
+
+    public void saveSequenceStats(SequenceStats stats) {
+
+        String sql =
+                """
+                INSERT INTO SequenceStats
+                (
+                    SequenceID,
+                    DetectionCount,
+                    ApprovalCount,
+                    DismissalCount,
+                    ReplaySpeed,
+                    LastSuggested,
+                    LastApproved
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """;
+
+        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+
+            stmt.setInt(1, stats.getSequenceId());
+            stmt.setInt(2, stats.getDetectionCount());
+            stmt.setInt(3, stats.getApprovalCount());
+            stmt.setInt(4, stats.getDismissalCount());
+            stmt.setDouble(5, stats.getReplaySpeed());
+            stmt.setTimestamp(6, stats.getLastSuggested());
+            stmt.setTimestamp(7, stats.getLastApproved());
+            stmt.executeUpdate();
+
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to save sequence stats.", e);
+        }
+    }
+
+    public Sequence getSequence(int id) {
+        Sequence sequence = new Sequence();
+        sequence.setId(id);
+
+        String sql =
+                """
+                SELECT *
+                FROM Action
+                WHERE SequenceID = ?
+                ORDER BY ActionOrder
+                """;
+
+        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+
+            stmt.setInt(1, id);
+            ResultSet rs = stmt.executeQuery();
+
+            while (rs.next()) {
+                Action action = new Action(
+                    ActionType.valueOf(rs.getString("ActionType")),
+                    rs.getString("ActionValue"),
+                    rs.getInt("KeyCode"),
+                    rs.getInt("DelayMs"),
+                    rs.getString("WindowInfo"));
+
+                sequence.addAction(action);
+            }
+
+            return sequence;
+
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to retrieve sequence.", e);
+        }
     }
 
     public List<Sequence> getSequences() {
-        return Collections.unmodifiableList(sequences);
+
+        List<Sequence> sequences = new ArrayList<>();
+
+        String sql =
+                """
+                SELECT SequenceID
+                FROM Sequence
+                """;
+
+        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+
+            ResultSet rs = stmt.executeQuery();
+            while (rs.next()) {
+                sequences.add(getSequence(rs.getInt("SequenceID")));
+            }
+
+            return sequences;
+
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to retrieve sequences.", e);
+        }
     }
-    
+
+    public void deleteSequence(int id) {
+
+        String sql =
+                """
+                DELETE FROM Sequence
+                WHERE SequenceID = ?
+                """;
+
+        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+
+            stmt.setInt(1, id);
+            stmt.executeUpdate();
+
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to delete sequence.", e);
+        }
+    }
+
+    public SequenceStats getSequenceStats(int id) {
+
+        String sql =
+                """
+                SELECT *
+                FROM SequenceStats
+                WHERE SequenceID = ?
+                """;
+
+        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+
+            stmt.setInt(1, id);
+
+            ResultSet rs = stmt.executeQuery();
+
+            if (!rs.next()) {
+                return null;
+            }
+
+            return new SequenceStats(
+                    rs.getInt("SequenceID"),
+                    rs.getInt("DetectionCount"),
+                    rs.getInt("ApprovalCount"),
+                    rs.getInt("DismissalCount"),
+                    rs.getDouble("ReplaySpeed"),
+                    rs.getTimestamp("LastSuggested"),
+                    rs.getTimestamp("LastApproved"));
+
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to retrieve sequence stats.", e);
+        }
+    }
+
+    public void recordApproval(int id) {
+
+        String sql =
+                """
+                UPDATE SequenceStats
+                SET ApprovalCount = ApprovalCount + 1,
+                    LastApproved = CURRENT_TIMESTAMP
+                WHERE SequenceID = ?
+                """;
+
+        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+
+            stmt.setInt(1, id);
+            stmt.executeUpdate();
+
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public void recordDismissal(int id) {
+
+        String sql =
+                """
+                UPDATE SequenceStats
+                SET DismissalCount = DismissalCount + 1
+                WHERE SequenceID = ?
+                """;
+
+        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+
+            stmt.setInt(1, id);
+            stmt.executeUpdate();
+
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public void recordDetection(int id) {
+
+        String sql =
+                """
+                UPDATE SequenceStats
+                SET DetectionCount = DetectionCount + 1,
+                    LastSuggested = CURRENT_TIMESTAMP
+                WHERE SequenceID = ?
+                """;
+
+        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+
+            stmt.setInt(1, id);
+            stmt.executeUpdate();
+
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public void updateReplaySpeed(int id, double replaySpeed) {
+
+        String sql =
+                """
+                UPDATE SequenceStats
+                SET ReplaySpeed = ?
+                WHERE SequenceID = ?
+                """;
+
+        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+
+            stmt.setDouble(1, replaySpeed);
+            stmt.setInt(2, id);
+
+            stmt.executeUpdate();
+
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public void close() {
+
+        try {
+            connection.close();
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to close database connection.", e);
+        }
+    }
 }

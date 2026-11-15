@@ -1,5 +1,4 @@
 // Temporary import to provide key codes that usually would come from InputTracker to showcase demo sequences.
-import java.awt.event.KeyEvent;
 
 public class Main {
 
@@ -10,7 +9,7 @@ public class Main {
         System.setProperty("swing.aatext", "true");
 
         // Core data/storage components
-        SequenceStore sequenceStore = new SequenceStore();
+        SequenceStore sequenceStore = new SequenceStore("automation.db");
 
         // Business logic
         PatternDetector patternDetector = new PatternDetector(sequenceStore);
@@ -30,7 +29,7 @@ public class Main {
 
         System.out.println("Automation Assistant Started");
 
-        // Demo Sequences for Sprint 1 to show off matching stored sequences.
+        /*  Demo Sequences for Sprint 1 to show off matching stored sequences.
         Sequence sequence_1 = new Sequence();
 
         sequence_1.addAction(new Action(ActionType.KEY_PRESS, "CTRL",KeyEvent.VK_CONTROL, System.currentTimeMillis()));
@@ -88,6 +87,7 @@ public class Main {
 
         sequenceStore.save(sequence_1);
         sequenceStore.save(sequence_2);
+        */
         inputTracker.start();
 
         // Uncomment below to test replayEngine. 
