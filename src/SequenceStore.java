@@ -10,80 +10,95 @@ public class SequenceStore {
 
         try {
             connection = DriverManager.getConnection("jdbc:sqlite:" + databaseFile);
+            try (Statement stmt = connection.createStatement()) {
+                stmt.execute("PRAGMA foreign_keys = ON");
+            }
+            initializeSchema();
 
         } catch (SQLException e) {
             throw new RuntimeException("Unable to connect to SQLite database.",e);
         }
     }
 
-    public void saveSequence(Sequence sequence) {
+    private void initializeSchema() {
 
         try {
 
-            connection.setAutoCommit(false);
+            String schema = java.nio.file.Files.readString(java.nio.file.Path.of("schema.sql"));
 
-            String sequenceSql = "INSERT INTO Sequence DEFAULT VALUES";
+            try (Statement stmt = connection.createStatement()) {
+                // Test and make sure this creates all of the tables
+                stmt.execute(schema);
+            }
 
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to initialize database schema.",e);
+        }
+    }
+
+    public void saveSequence(Sequence sequence) {
+
+        String sequenceSql = "INSERT INTO Sequence DEFAULT VALUES";
+        String actionSql =
+            """
+            INSERT INTO Action
+            (
+                SequenceID,
+                ActionOrder,
+                ActionType,
+                ActionValue,
+                KeyCode,
+                DelayMs,
+                WindowInfo
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """;
+
+        try (
             PreparedStatement sequenceStmt = connection.prepareStatement(sequenceSql, Statement.RETURN_GENERATED_KEYS);
+            PreparedStatement actionStmt = connection.prepareStatement(actionSql)
+        ) {
+
+            connection.setAutoCommit(false);
 
             sequenceStmt.executeUpdate();
 
-            ResultSet generatedKeys = sequenceStmt.getGeneratedKeys();
+            try (ResultSet generatedKeys = sequenceStmt.getGeneratedKeys()) {
 
-            if (!generatedKeys.next()) {
-                throw new SQLException("Failed to create sequence.");
-            }
-
-            int sequenceId = generatedKeys.getInt(1);
-
-            sequence.setId(sequenceId);
-
-            String actionSql =
-                    """
-                    INSERT INTO Action
-                    (
-                        SequenceID,
-                        ActionOrder,
-                        ActionType,
-                        ActionValue,
-                        KeyCode,
-                        DelayMs,
-                        WindowInfo
-                    )
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                    """;
-
-            PreparedStatement actionStmt = connection.prepareStatement(actionSql);
-
-            List<Action> actions = sequence.getActions();
-
-            for (int i = 0; i < actions.size(); i++) {
-
-                Action action = actions.get(i);
-
-                actionStmt.setInt(1, sequenceId);
-
-                actionStmt.setInt(2, i);
-
-                actionStmt.setString(3, action.getType().name());
-
-                actionStmt.setString(4, action.getValue());
-
-                if (action.hasKeyCode()) {
-                    actionStmt.setInt(5, action.getKeyCode());
-                } else {
-                    actionStmt.setNull(5, Types.INTEGER);
+                if (!generatedKeys.next()) {
+                    throw new SQLException("Failed to create sequence.");
                 }
 
-                actionStmt.setInt(6, action.getDelayMs());
+                int sequenceId = generatedKeys.getInt(1);
+                sequence.setId(sequenceId);
 
-                actionStmt.setString(7, action.getWindowInfo());
+                List<Action> actions = sequence.getActions();
+                for (int i = 0; i < actions.size(); i++) {
 
-                actionStmt.addBatch();
+                    Action action = actions.get(i);
+
+                    actionStmt.setInt(1, sequenceId);
+
+                    actionStmt.setInt(2, i);
+
+                    actionStmt.setString(3, action.getType().name());
+
+                    actionStmt.setString(4, action.getValue());
+
+                    if (action.hasKeyCode()) {
+                        actionStmt.setInt(5, action.getKeyCode());
+                    } else {
+                        actionStmt.setNull(5, Types.INTEGER);
+                    }
+
+                    actionStmt.setInt(6, action.getDelayMs());
+
+                    actionStmt.setString(7, action.getWindowInfo());
+
+                    actionStmt.addBatch();
+                }
+                actionStmt.executeBatch();
             }
-
-            actionStmt.executeBatch();
-
             connection.commit();
 
         } catch (SQLException e) {
@@ -92,8 +107,13 @@ public class SequenceStore {
                 connection.rollback();
             } catch (SQLException ignored) {
             }
-
             throw new RuntimeException("Failed to save sequence.", e);
+        // Ensures the autoCommit is set back to the state it was.
+        } finally {
+            try {
+                connection.setAutoCommit(true);
+            } catch (SQLException ignored) {
+            }
         }
     }
 
@@ -145,19 +165,20 @@ public class SequenceStore {
         try (PreparedStatement stmt = connection.prepareStatement(sql)) {
 
             stmt.setInt(1, id);
-            ResultSet rs = stmt.executeQuery();
 
-            while (rs.next()) {
-                Action action = new Action(
-                    ActionType.valueOf(rs.getString("ActionType")),
-                    rs.getString("ActionValue"),
-                    rs.getInt("KeyCode"),
-                    rs.getInt("DelayMs"),
-                    rs.getString("WindowInfo"));
+            try (ResultSet rs = stmt.executeQuery()) {
 
-                sequence.addAction(action);
+                while (rs.next()) {
+                    Action action = new Action(
+                        ActionType.valueOf(rs.getString("ActionType")),
+                        rs.getString("ActionValue"),
+                        rs.getInt("KeyCode"),
+                        rs.getInt("DelayMs"),
+                        rs.getString("WindowInfo"));
+
+                    sequence.addAction(action);
+                }
             }
-
             return sequence;
 
         } catch (SQLException e) {
@@ -175,9 +196,11 @@ public class SequenceStore {
                 FROM Sequence
                 """;
 
-        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+        try (
+            PreparedStatement stmt = connection.prepareStatement(sql);
+            ResultSet rs = stmt.executeQuery()
+        ) {
 
-            ResultSet rs = stmt.executeQuery();
             while (rs.next()) {
                 sequences.add(getSequence(rs.getInt("SequenceID")));
             }
@@ -220,20 +243,22 @@ public class SequenceStore {
 
             stmt.setInt(1, id);
 
-            ResultSet rs = stmt.executeQuery();
+            try (ResultSet rs = stmt.executeQuery()){
 
-            if (!rs.next()) {
-                return null;
-            }
-
-            return new SequenceStats(
+                if (!rs.next()) {
+                    return null;
+                }
+            
+                return new SequenceStats(
                     rs.getInt("SequenceID"),
                     rs.getInt("DetectionCount"),
                     rs.getInt("ApprovalCount"),
                     rs.getInt("DismissalCount"),
                     rs.getDouble("ReplaySpeed"),
                     rs.getTimestamp("LastSuggested"),
-                    rs.getTimestamp("LastApproved"));
+                    rs.getTimestamp("LastApproved")
+                );
+            }
 
         } catch (SQLException e) {
             throw new RuntimeException("Failed to retrieve sequence stats.", e);
