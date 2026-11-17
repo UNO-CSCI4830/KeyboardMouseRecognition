@@ -1,35 +1,54 @@
 // One keyboard or mouse action done by the user.
-// value examples: "CTRL" for a key, "LEFT@500,300" for a click, "500,300" for a move
+// value examples: "CTRL" for a key, "LEFT@500,300" for a click
 public class Action {
 
     public static final int NO_KEY_CODE = -1;
 
-    private ActionType type;
-    private String value;
-    private int keyCode;    // java.awt.event.KeyEvent code for Robot, or NO_KEY_CODE for mouse actions
-    private long timestamp; // not really used yet, might need it in sprint 2
+    private final ActionType type;
+    private final String value;
+    private final int keyCode;
+    private final long timestamp;
+    private final int delayMs;       // time since the previous action
+    private final String windowInfo; // title of the active window
 
     public Action(ActionType type, String value) {
-        this(type, value, NO_KEY_CODE, System.currentTimeMillis());
+        this(type, value, NO_KEY_CODE, System.currentTimeMillis(), 0, "");
     }
 
     public Action(ActionType type, String value, long timestamp) {
-        this(type, value, NO_KEY_CODE, timestamp);
+        this(type, value, NO_KEY_CODE, timestamp, 0, "");
     }
 
-    // used by InputTracker for key presses/releases so ReplayEngine can do robot.keyPress(keyCode)
     public Action(ActionType type, String value, int keyCode, long timestamp) {
-        // type and value can't be null since equals() and hashCode() use them
+        this(type, value, keyCode, timestamp, 0, "");
+    }
+
+    // used by SequenceStore when loading from the database
+    public Action(ActionType type, String value, int keyCode, int delayMs, String windowInfo) {
+        this(type, value, keyCode, 0, delayMs, windowInfo);
+    }
+
+    public Action(ActionType type, String value, int keyCode, long timestamp, int delayMs, String windowInfo) {
         if (type == null) {
             throw new IllegalArgumentException("Action type can't be null");
         }
         if (value == null) {
             throw new IllegalArgumentException("Action value can't be null");
         }
+        if (delayMs < 0) {
+            throw new IllegalArgumentException("Delay can't be negative: " + delayMs);
+        }
         this.type = type;
         this.value = value;
-        this.keyCode = keyCode;
+        // SQLite returns 0 for a NULL KeyCode, and no real key code is 0 or less
+        this.keyCode = (keyCode > 0) ? keyCode : NO_KEY_CODE;
         this.timestamp = timestamp;
+        this.delayMs = delayMs;
+        this.windowInfo = (windowInfo == null) ? "" : windowInfo;
+    }
+
+    public Action withDelayMs(int newDelayMs) {
+        return new Action(type, value, keyCode, timestamp, newDelayMs, windowInfo);
     }
 
     public ActionType getType() {
@@ -40,7 +59,6 @@ public class Action {
         return value;
     }
 
-    // the key code Robot uses (java.awt.event.KeyEvent.VK_...), or NO_KEY_CODE
     public int getKeyCode() {
         return keyCode;
     }
@@ -53,10 +71,16 @@ public class Action {
         return timestamp;
     }
 
-    // two actions are the same if type and value match
-    // we ignore timestamp so doing the steps slower or faster still counts
-    // (keyCode comes from the same key as value, so we don't need to compare it)
-    // (type and value are never null because the constructor checks them)
+    public int getDelayMs() {
+        return delayMs;
+    }
+
+    public String getWindowInfo() {
+        return windowInfo;
+    }
+
+    // Only type and value count, so timing doesn't matter. Window is left out
+    // because titles change often (e.g. "Book1 - Excel" vs "Book2 - Excel").
     @Override
     public boolean equals(Object obj) {
         if (!(obj instanceof Action)) {
