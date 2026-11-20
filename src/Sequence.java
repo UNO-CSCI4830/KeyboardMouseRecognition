@@ -7,9 +7,6 @@ public class Sequence {
 
     private int id; // -1 until SequenceStore saves it
     private List<Action> actions;
-    private int timesSeen;
-    private int approvals;
-    private int dismissals;
 
     public Sequence() {
         actions = new ArrayList<>();
@@ -80,30 +77,6 @@ public class Sequence {
             return "";
         }
         return actions.get(0).getWindowInfo();
-    }
-
-    public void incrementTimesSeen() {
-        timesSeen++;
-    }
-
-    public void incrementApprovals() {
-        approvals++;
-    }
-
-    public void incrementDismissals() {
-        dismissals++;
-    }
-
-    public int getTimesSeen() {
-        return timesSeen;
-    }
-
-    public int getApprovals() {
-        return approvals;
-    }
-
-    public int getDismissals() {
-        return dismissals;
     }
 
     public int getId() {
