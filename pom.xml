@@ -24,6 +24,13 @@
             <version>2.2.2</version>
         </dependency>
 
+        <!-- Active window title for each Action (InputTracker) -->
+        <dependency>
+            <groupId>net.java.dev.jna</groupId>
+            <artifactId>jna-platform</artifactId>
+            <version>5.15.0</version>
+        </dependency>
+
         <!-- JavaFX for the suggestion popup (NotifPopup) -->
         <dependency>
             <groupId>org.openjfx</groupId>
@@ -31,7 +38,12 @@
             <version>${javafx.version}</version>
         </dependency>
 
-        <!-- Add SQLite here in Sprint 2 -->
+        <!-- SQLite database driver (SequenceStore) -->
+        <dependency>
+            <groupId>org.xerial</groupId>
+            <artifactId>sqlite-jdbc</artifactId>
+            <version>3.47.1.0</version>
+        </dependency>
     </dependencies>
 
     <build>
