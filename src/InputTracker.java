@@ -251,6 +251,12 @@ public class InputTracker implements NativeKeyListener, NativeMouseListener, Nat
         return recording;
     }
 
+    // true when no keys are held down, so PatternDetector only suggests
+    // automations from a clean starting state
+    public boolean isKeyboardIdle() {
+        return keysHeld.isEmpty();
+    }
+
     public void setPaused(boolean paused) {
         this.paused = paused;
         lastActionTime = -1; // time spent paused isn't a delay
