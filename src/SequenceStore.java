@@ -1,10 +1,12 @@
 import java.sql.*;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public class SequenceStore {
 
     private final Connection connection;
+    private final List<Sequence> sequences = new ArrayList<>();
 
     public SequenceStore(String databaseFile) {
 
@@ -14,6 +16,7 @@ public class SequenceStore {
                 stmt.execute("PRAGMA foreign_keys = ON");
             }
             initializeSchema();
+            loadSequencesFromDatabase(); 
 
         } catch (SQLException e) {
             throw new RuntimeException("Unable to connect to SQLite database.",e);
@@ -23,16 +26,47 @@ public class SequenceStore {
     private void initializeSchema() {
 
         try {
-
-            String schema = java.nio.file.Files.readString(java.nio.file.Path.of("schema.sql"));
+            // Update this when we change file structure. 
+            String schema = java.nio.file.Files.readString(java.nio.file.Path.of("src", "schema.sql"));
 
             try (Statement stmt = connection.createStatement()) {
-                // Test and make sure this creates all of the tables
-                stmt.execute(schema);
+
+                for (String statement : schema.split(";")) {
+
+                    String sql = statement.trim();
+
+                    if (!sql.isEmpty()) {
+                        stmt.execute(sql);
+                    }
+                }
             }
 
         } catch (Exception e) {
             throw new RuntimeException("Failed to initialize database schema.",e);
+        }
+    }
+
+    private void loadSequencesFromDatabase() {
+
+        sequences.clear();
+
+        String sql =
+                """
+                SELECT SequenceID
+                FROM Sequence
+                """;
+
+        try (PreparedStatement stmt = connection.prepareStatement(sql);
+            ResultSet rs = stmt.executeQuery()) {
+
+            while (rs.next()) {
+
+                int sequenceId = rs.getInt("SequenceID");
+                sequences.add(getSequence(sequenceId));
+            }
+
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to load sequences.",e);
         }
     }
 
@@ -72,17 +106,29 @@ public class SequenceStore {
                 int sequenceId = generatedKeys.getInt(1);
                 sequence.setId(sequenceId);
 
+                String statsSql =
+                    """
+                    INSERT INTO SequenceStats
+                    (
+                        SequenceID
+                    )
+                    VALUES (?)
+                    """;
+
+                try (PreparedStatement statsStmt =
+                        connection.prepareStatement(statsSql)) {
+
+                    statsStmt.setInt(1, sequenceId);
+                    statsStmt.executeUpdate();
+                }
+
                 List<Action> actions = sequence.getActions();
                 for (int i = 0; i < actions.size(); i++) {
 
                     Action action = actions.get(i);
-
                     actionStmt.setInt(1, sequenceId);
-
                     actionStmt.setInt(2, i);
-
                     actionStmt.setString(3, action.getType().name());
-
                     actionStmt.setString(4, action.getValue());
 
                     if (action.hasKeyCode()) {
@@ -92,14 +138,13 @@ public class SequenceStore {
                     }
 
                     actionStmt.setInt(6, action.getDelayMs());
-
                     actionStmt.setString(7, action.getWindowInfo());
-
                     actionStmt.addBatch();
                 }
                 actionStmt.executeBatch();
             }
             connection.commit();
+            sequences.add(sequence); 
 
         } catch (SQLException e) {
 
@@ -114,39 +159,6 @@ public class SequenceStore {
                 connection.setAutoCommit(true);
             } catch (SQLException ignored) {
             }
-        }
-    }
-
-    public void saveSequenceStats(SequenceStats stats) {
-
-        String sql =
-                """
-                INSERT INTO SequenceStats
-                (
-                    SequenceID,
-                    DetectionCount,
-                    ApprovalCount,
-                    DismissalCount,
-                    ReplaySpeed,
-                    LastSuggested,
-                    LastApproved
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-                """;
-
-        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
-
-            stmt.setInt(1, stats.getSequenceId());
-            stmt.setInt(2, stats.getDetectionCount());
-            stmt.setInt(3, stats.getApprovalCount());
-            stmt.setInt(4, stats.getDismissalCount());
-            stmt.setDouble(5, stats.getReplaySpeed());
-            stmt.setTimestamp(6, stats.getLastSuggested());
-            stmt.setTimestamp(7, stats.getLastApproved());
-            stmt.executeUpdate();
-
-        } catch (SQLException e) {
-            throw new RuntimeException("Failed to save sequence stats.", e);
         }
     }
 
@@ -187,29 +199,7 @@ public class SequenceStore {
     }
 
     public List<Sequence> getSequences() {
-
-        List<Sequence> sequences = new ArrayList<>();
-
-        String sql =
-                """
-                SELECT SequenceID
-                FROM Sequence
-                """;
-
-        try (
-            PreparedStatement stmt = connection.prepareStatement(sql);
-            ResultSet rs = stmt.executeQuery()
-        ) {
-
-            while (rs.next()) {
-                sequences.add(getSequence(rs.getInt("SequenceID")));
-            }
-
-            return sequences;
-
-        } catch (SQLException e) {
-            throw new RuntimeException("Failed to retrieve sequences.", e);
-        }
+        return Collections.unmodifiableList(sequences);
     }
 
     public void deleteSequence(int id) {
@@ -224,6 +214,7 @@ public class SequenceStore {
 
             stmt.setInt(1, id);
             stmt.executeUpdate();
+            sequences.removeIf(s -> s.getId() == id);
 
         } catch (SQLException e) {
             throw new RuntimeException("Failed to delete sequence.", e);
@@ -281,7 +272,7 @@ public class SequenceStore {
             stmt.executeUpdate();
 
         } catch (SQLException e) {
-            throw new RuntimeException(e);
+            throw new RuntimeException("Failed to record approval.", e);
         }
     }
 
@@ -300,7 +291,7 @@ public class SequenceStore {
             stmt.executeUpdate();
 
         } catch (SQLException e) {
-            throw new RuntimeException(e);
+            throw new RuntimeException("Failed to record dismissal.",e);
         }
     }
 
@@ -320,7 +311,7 @@ public class SequenceStore {
             stmt.executeUpdate();
 
         } catch (SQLException e) {
-            throw new RuntimeException(e);
+            throw new RuntimeException("Failed to record detection.",e);
         }
     }
 
@@ -341,7 +332,7 @@ public class SequenceStore {
             stmt.executeUpdate();
 
         } catch (SQLException e) {
-            throw new RuntimeException(e);
+            throw new RuntimeException("Failed to update replay speed.",e);
         }
     }
 

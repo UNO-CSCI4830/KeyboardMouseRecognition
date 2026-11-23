@@ -1,4 +1,4 @@
-// Temporary import to provide key codes that usually would come from InputTracker to showcase demo sequences.
+
 
 public class Main {
 
@@ -10,6 +10,7 @@ public class Main {
 
         // Core data/storage component
         SequenceStore sequenceStore = new SequenceStore("automation.db");
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> sequenceStore.close()));
 
         // User interface
         NotifPopup notifPopup = new NotifPopup();
@@ -19,16 +20,13 @@ public class Main {
 
         // Business logic
         PatternDetector patternDetector = new PatternDetector(sequenceStore, inputTracker);
-
         ReplayEngine replayEngine = new ReplayEngine();
 
         // Application coordinator
         Controller controller = new Controller(patternDetector, replayEngine, notifPopup, inputTracker);
 
         inputTracker.setListener(controller::handleAction);
-
         System.out.println("Automation Assistant Started");
-        
         inputTracker.start();
     }
 }
