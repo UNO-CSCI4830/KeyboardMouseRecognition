@@ -13,7 +13,18 @@ public class SequenceLearner {
         this.sequenceStore = sequenceStore;
     }
 
-public boolean isLongEnough(Sequence sequence) {    
-    return sequence.size() >= MIN_SEQUENCE_LENGTH;
+    public boolean isLongEnough(Sequence sequence) {
+        return sequence.size() >= MIN_SEQUENCE_LENGTH;
     }
+
+    // same actions in the same order (Action.equals ignores timing)
+    public boolean isDuplicate(Sequence sequence) {
+        for (Sequence saved : sequenceStore.getSequences()) {
+            if (saved.getActions().equals(sequence.getActions())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
 }
