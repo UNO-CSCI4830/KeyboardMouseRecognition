@@ -6,6 +6,9 @@ import com.github.kwhat.jnativehook.mouse.NativeMouseEvent;
 import com.github.kwhat.jnativehook.mouse.NativeMouseListener;
 import com.github.kwhat.jnativehook.mouse.NativeMouseWheelEvent;
 import com.github.kwhat.jnativehook.mouse.NativeMouseWheelListener;
+import com.sun.jna.Native;
+import com.sun.jna.platform.win32.User32;
+import com.sun.jna.platform.win32.WinDef.HWND;
 
 import java.awt.event.KeyEvent;
 import java.util.ArrayList;
@@ -19,29 +22,40 @@ import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-// Captures the user's keyboard and mouse input and turns it into Action objects.
-// Uses JNativeHook so it works even when our program isn't the active window.
-//
-// Mouse movement isn't recorded for sprint 1 since it would make a huge
-// number of actions. We just save where the mouse was when it clicked.
+// Captures keyboard and mouse input and turns it into Action objects.
+// Mouse movement isn't recorded, only where the mouse was when it clicked.
 public class InputTracker implements NativeKeyListener, NativeMouseListener, NativeMouseWheelListener {
 
-    private Consumer<Action> listener;   // who gets each new action (Main hooks this up)
-    private boolean recording = true;    // FR2: recording is on by default
-    private boolean paused = false;      // set to true while ReplayEngine is running
-    private List<Action> recorded = new ArrayList<>();
-    private Set<Integer> keysHeld = new HashSet<>(); // so holding a key down doesn't spam presses
+    // so a long pause in the middle of a task isn't replayed
+    public static final int MAX_DELAY_MS = 3000;
+    public static final int MAX_RECORDED = 1000;
 
-    // JNativeHook key codes -> java.awt.event.KeyEvent codes (what Robot uses to replay keys)
+    private static final boolean IS_WINDOWS =
+            System.getProperty("os.name", "").toLowerCase().contains("win");
+
+    private Consumer<Action> listener;
+    private volatile boolean recording = true;
+    private volatile boolean paused = false;
+    private List<Action> recorded = new ArrayList<>();
+    private Set<Integer> keysHeld = new HashSet<>();
+    private long lastActionTime = -1;
+
     private static final Map<Integer, Integer> KEY_CODES = buildKeyCodeMap();
+
+    // JNativeHook gives right-side modifiers their own codes with no name or Robot code
+    // (right Shift showed up as "UNKNOWN KEYCODE: 0XE36"), so treat them as the left ones
+    private static final Map<Integer, Integer> RIGHT_TO_LEFT = Map.of(
+            0x0E36, NativeKeyEvent.VC_SHIFT,
+            0x0E1D, NativeKeyEvent.VC_CONTROL,
+            0x0E38, NativeKeyEvent.VC_ALT,
+            0x0E5C, NativeKeyEvent.VC_META);
 
     public void setListener(Consumer<Action> listener) {
         this.listener = listener;
     }
 
-    // starts listening to the keyboard and mouse
     public void start() {
-        // JNativeHook prints a lot of log messages, turn them off
+        // JNativeHook logs a lot, turn it off
         Logger logger = Logger.getLogger(GlobalScreen.class.getPackage().getName());
         logger.setLevel(Level.OFF);
         logger.setUseParentHandlers(false);
@@ -57,7 +71,6 @@ public class InputTracker implements NativeKeyListener, NativeMouseListener, Nat
         GlobalScreen.addNativeMouseWheelListener(this);
     }
 
-    // stops listening
     public void stop() {
         GlobalScreen.removeNativeKeyListener(this);
         GlobalScreen.removeNativeMouseListener(this);
@@ -69,12 +82,27 @@ public class InputTracker implements NativeKeyListener, NativeMouseListener, Nat
         }
     }
 
-    // every captured input goes through here
+    private void capture(ActionType type, String value, int keyCode) {
+        if (!recording || paused) {
+            return;
+        }
+        long now = System.currentTimeMillis();
+        int delayMs = 0;
+        if (lastActionTime >= 0) {
+            delayMs = (int) Math.max(0, Math.min(now - lastActionTime, MAX_DELAY_MS));
+        }
+        lastActionTime = now;
+        record(new Action(type, value, keyCode, now, delayMs, getActiveWindowTitle()));
+    }
+
     public void record(Action action) {
         if (!recording || paused) {
             return;
         }
         recorded.add(action);
+        if (recorded.size() > MAX_RECORDED) {
+            recorded.remove(0);
+        }
         if (listener != null) {
             listener.accept(action);
         }
@@ -86,40 +114,40 @@ public class InputTracker implements NativeKeyListener, NativeMouseListener, Nat
     public void nativeKeyPressed(NativeKeyEvent e) {
         int code = e.getKeyCode();
         if (keysHeld.contains(code)) {
-            return; // key is being held down, already recorded it
+            return; // key is being held down
         }
         keysHeld.add(code);
-        record(new Action(ActionType.KEY_PRESS, keyName(code), toRobotKeyCode(code), System.currentTimeMillis()));
+        capture(ActionType.KEY_PRESS, keyName(code), toRobotKeyCode(code));
     }
 
     @Override
     public void nativeKeyReleased(NativeKeyEvent e) {
         int code = e.getKeyCode();
         keysHeld.remove(code);
-        record(new Action(ActionType.KEY_RELEASE, keyName(code), toRobotKeyCode(code), System.currentTimeMillis()));
+        capture(ActionType.KEY_RELEASE, keyName(code), toRobotKeyCode(code));
     }
 
-    // turns a key code into a name like "CTRL" or "C"
+    private static int toLeftSide(int nativeCode) {
+        return RIGHT_TO_LEFT.getOrDefault(nativeCode, nativeCode);
+    }
+
     private String keyName(int code) {
-        return NativeKeyEvent.getKeyText(code).toUpperCase();
+        return NativeKeyEvent.getKeyText(toLeftSide(code)).toUpperCase();
     }
 
-    // turns a JNativeHook key code into the code Robot uses, or -1 if we don't know it
     public static int toRobotKeyCode(int nativeCode) {
-        Integer robotCode = KEY_CODES.get(nativeCode);
+        Integer robotCode = KEY_CODES.get(toLeftSide(nativeCode));
         if (robotCode == null) {
             return Action.NO_KEY_CODE;
         }
         return robotCode;
     }
 
-    // JNativeHook and Robot use different numbers for the same key (for example ENTER),
-    // so we match them up by name: NativeKeyEvent.VC_ENTER -> KeyEvent.VK_ENTER.
-    // Looking them up by name means a key that doesn't exist just gets skipped.
+    // JNativeHook and Robot number keys differently, so match them by name:
+    // NativeKeyEvent.VC_ENTER -> KeyEvent.VK_ENTER
     private static Map<Integer, Integer> buildKeyCodeMap() {
         Map<Integer, Integer> map = new HashMap<>();
 
-        // letters, numbers, and F1-F12 have the same names in both
         for (char c = 'A'; c <= 'Z'; c++) {
             addKey(map, "" + c, "" + c);
         }
@@ -130,7 +158,7 @@ public class InputTracker implements NativeKeyListener, NativeMouseListener, Nat
             addKey(map, "F" + i, "F" + i);
         }
 
-        // other keys: {JNativeHook name, Robot name}
+        // {JNativeHook name, Robot name}
         String[][] names = {
             {"ESCAPE", "ESCAPE"}, {"BACKSPACE", "BACK_SPACE"}, {"TAB", "TAB"},
             {"ENTER", "ENTER"}, {"SPACE", "SPACE"}, {"CAPS_LOCK", "CAPS_LOCK"},
@@ -152,14 +180,13 @@ public class InputTracker implements NativeKeyListener, NativeMouseListener, Nat
         return map;
     }
 
-    // adds NativeKeyEvent.VC_<nativeName> -> KeyEvent.VK_<robotName> if both exist
     private static void addKey(Map<Integer, Integer> map, String nativeName, String robotName) {
         try {
             int nativeCode = NativeKeyEvent.class.getField("VC_" + nativeName).getInt(null);
             int robotCode = KeyEvent.class.getField("VK_" + robotName).getInt(null);
             map.put(nativeCode, robotCode);
         } catch (NoSuchFieldException | IllegalAccessException e) {
-            // one of the libraries doesn't have this key, just skip it
+            // one of the libraries doesn't have this key
         }
     }
 
@@ -167,10 +194,7 @@ public class InputTracker implements NativeKeyListener, NativeMouseListener, Nat
 
     @Override
     public void nativeMousePressed(NativeMouseEvent e) {
-        // NOTE: JNativeHook numbers buttons differently than java.awt.event.MouseEvent.
-        // In JNativeHook BUTTON2 = right and BUTTON3 = middle (tested: right-click -> RIGHT).
-        // ReplayEngine should map these strings to Robot's masks:
-        //   LEFT -> InputEvent.BUTTON1_DOWN_MASK, MIDDLE -> BUTTON2_DOWN_MASK, RIGHT -> BUTTON3_DOWN_MASK
+        // In JNativeHook BUTTON2 is right and BUTTON3 is middle
         String button;
         if (e.getButton() == NativeMouseEvent.BUTTON1) {
             button = "LEFT";
@@ -181,52 +205,80 @@ public class InputTracker implements NativeKeyListener, NativeMouseListener, Nat
         } else {
             button = "BUTTON" + e.getButton();
         }
-        record(new Action(ActionType.MOUSE_CLICK, button + "@" + e.getX() + "," + e.getY()));
+        capture(ActionType.MOUSE_CLICK, button + "@" + e.getX() + "," + e.getY(), Action.NO_KEY_CODE);
     }
 
     @Override
     public void nativeMouseWheelMoved(NativeMouseWheelEvent e) {
-        record(new Action(ActionType.MOUSE_SCROLL, String.valueOf(e.getWheelRotation())));
+        capture(ActionType.MOUSE_SCROLL, String.valueOf(e.getWheelRotation()), Action.NO_KEY_CODE);
+    }
+
+    // ---------- active window ----------
+
+    // Windows only for now, "" everywhere else or if it fails
+    public static String getActiveWindowTitle() {
+        if (!IS_WINDOWS) {
+            return "";
+        }
+        try {
+            return WindowsWindow.activeTitle();
+        } catch (Throwable t) {
+            return "";
+        }
+    }
+
+    // separate class so the JNA Windows code only loads on Windows
+    private static class WindowsWindow {
+        static String activeTitle() {
+            HWND window = User32.INSTANCE.GetForegroundWindow();
+            if (window == null) {
+                return "";
+            }
+            char[] buffer = new char[512];
+            User32.INSTANCE.GetWindowText(window, buffer, buffer.length);
+            return Native.toString(buffer);
+        }
     }
 
     // ---------- recording controls ----------
 
-    // FR2: user can turn recording on or off
     public void setRecording(boolean recording) {
         this.recording = recording;
+        lastActionTime = -1; // time spent off isn't a delay
     }
 
     public boolean isRecording() {
         return recording;
     }
 
-    // Main should pause this during a replay so we don't record our own key presses
-    public void setPaused(boolean paused) {
-        this.paused = paused;
+    // true when no keys are held down, so PatternDetector only suggests
+    // automations from a clean starting state
+    public boolean isKeyboardIdle() {
+        return keysHeld.isEmpty();
     }
 
-    // everything recorded so far (read-only so other classes can't change it)
+    public void setPaused(boolean paused) {
+        this.paused = paused;
+        lastActionTime = -1; // time spent paused isn't a delay
+    }
+
     public List<Action> getRecordedActions() {
         return Collections.unmodifiableList(recorded);
     }
 
-    // turns what was recorded into a Sequence and starts fresh
-    public Sequence makeSequence(String windowInfo) {
-        Sequence seq = new Sequence(recorded, windowInfo);
+    public Sequence makeSequence() {
+        Sequence seq = new Sequence(recorded);
         recorded = new ArrayList<>();
+        lastActionTime = -1;
         return seq;
     }
 
     // quick test: run this, type and click around for 10 seconds
     public static void main(String[] args) throws InterruptedException {
         InputTracker tracker = new InputTracker();
-        tracker.setListener(action -> {
-            if (action.hasKeyCode()) {
-                System.out.println("Recorded: " + action + " keyCode=" + action.getKeyCode());
-            } else {
-                System.out.println("Recorded: " + action);
-            }
-        });
+        tracker.setListener(action -> System.out.println(action
+                + " delay=" + action.getDelayMs() + "ms"
+                + " window=\"" + action.getWindowInfo() + "\""));
         tracker.start();
         System.out.println("Tracking for 10 seconds, type and click around...");
         Thread.sleep(10000);
