@@ -23,13 +23,20 @@ public class Controller {
     public void handleAction(Action action) {
 
         // Take in the action object made from the user input, compare with SequenceStore,
-        // And then return the matched Sequence. Don't do anything if there wasn't a match.
+        // And then return the longest matched Sequence. Don't do anything if there wasn't a match.
 
-        Sequence match = patternDetector.processAction(action);
-        if (match == null) {
-            return;
+        Sequence match = null;
+
+        for (Sequence candidate : patternDetector.processActionMatches(action)) {
+            if (match == null || candidate.size() > match.size()) {
+                match = candidate;
+            }
         }
 
+        if (match == null) {
+            return;
+        }        
+        
         inputTracker.setPaused(true);
 
         // Make the Notification for approval show up, and return true or false to whether user wants automation

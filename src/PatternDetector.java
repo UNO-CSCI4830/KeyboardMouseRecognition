@@ -2,31 +2,23 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class PatternDetector {
-
     private static final int MIN_MATCH_LENGTH = 3;
 
     private final SequenceStore sequenceStore;
+    private final InputTracker inputTracker;
     private final List<Action> buffer = new ArrayList<>();
     private int matchLength;
 
-    public PatternDetector(SequenceStore sequenceStore) {
+    public PatternDetector(SequenceStore sequenceStore, InputTracker inputTracker) {
         if (sequenceStore == null) {
             throw new IllegalArgumentException("Sequence store cannot be null");
         }
-
-        this.sequenceStore = sequenceStore;
-    }
-
-    public Sequence processAction(Action action) {
-        Sequence longestMatch = null;
-
-        for (Sequence sequence : processActionMatches(action)) {
-            if (longestMatch == null || sequence.size() > longestMatch.size()) {
-                longestMatch = sequence;
-            }
+        if (inputTracker == null) {
+            throw new IllegalArgumentException("Input tracker cannot be null");
         }
 
-        return longestMatch;
+        this.sequenceStore = sequenceStore;
+        this.inputTracker = inputTracker;
     }
 
     public List<Sequence> processActionMatches(Action action) {
@@ -34,10 +26,19 @@ public class PatternDetector {
             throw new IllegalArgumentException("Action cannot be null");
         }
 
+        // Keeps the action in the buffer even when a held key blocks suggestions.
+
         buffer.add(action);
+
+        if (!inputTracker.isKeyboardIdle()) {
+            matchLength = 0;
+            return new ArrayList<>();
+        }
+
         List<Sequence> matches = findMatches();
 
         // Remove the oldest action until the buffer can start a saved sequence.
+
         while (matches.isEmpty() && !buffer.isEmpty()) {
             buffer.remove(0);
             matches = findMatches();
