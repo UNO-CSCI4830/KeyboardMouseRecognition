@@ -83,12 +83,9 @@ public class SuggestionEngine {
 
     private SequenceStats getStats(Sequence sequence) {
         if (sequenceStore != null) {
-            SequenceStats stored = sequenceStore.getSequenceStats(sequence.getId());
-            if (stored != null) {
-                return stored;
-            }
+            return sequenceStore.getSequenceStats(sequence.getId());
         }
-
-        return new SequenceStats(sequence.getId());
+        
+        return null;
     }
 }
