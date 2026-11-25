@@ -1,3 +1,5 @@
+import java.util.List;
+
 // Decides which action lists are worth saving as sequences
 public class SequenceLearner {
 
@@ -27,4 +29,15 @@ public class SequenceLearner {
         return false;
     }
 
+    // saves the actions as a new sequence if it's long enough and not already saved
+    public boolean learn(List<Action> actions) {
+        Sequence sequence = new Sequence(actions);
+
+        if (!isLongEnough(sequence) || isDuplicate(sequence)) {
+            return false;
+        }
+
+        sequenceStore.saveSequence(sequence);
+        return true;
+    }
 }
