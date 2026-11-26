@@ -12,11 +12,11 @@ public class Main {
         SequenceStore sequenceStore = new SequenceStore("automation.db");
         Runtime.getRuntime().addShutdownHook(new Thread(() -> sequenceStore.close()));
 
-        // User interface
-        NotifPopup notifPopup = new NotifPopup();
-
         // Input capture
         InputTracker inputTracker = new InputTracker();
+
+        // User interface
+        NotifPopup notifPopup = new NotifPopup(inputTracker);
 
         // Business logic
         PatternDetector patternDetector = new PatternDetector(sequenceStore, inputTracker);

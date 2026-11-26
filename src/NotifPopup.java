@@ -8,12 +8,13 @@ import java.awt.GraphicsEnvironment;
 import java.awt.Rectangle;
 import javax.swing.JTextArea;
 import javax.swing.JScrollPane;
+
 public class NotifPopup {
 
-    // Ignoring after 10(default) seconds == cancel.
-    public static final int DEFAULT_TIMEOUT_MS = 25_000;
+    // Ignoring after 15(default) seconds == cancel.
+    public static final int DEFAULT_TIMEOUT_MS = 15_000;
     private static final int MARGIN = 16; //play with this value to adjust screen safe are
-    private volatile int timeoutMs  = DEFAULT_TIMEOUT_MS;; // changeable timeout setting
+    private volatile int timeoutMs  = DEFAULT_TIMEOUT_MS; // changeable timeout setting
 
     public int getTimeoutMs() {
         return timeoutMs;
@@ -24,9 +25,11 @@ public class NotifPopup {
         }
         this.timeoutMs = timeout;
     }
+    private final InputTracker inputTracker;
 
-    public NotifPopup() {
+    public NotifPopup(InputTracker inputTracker) {
         String LAF;
+        this.inputTracker = inputTracker;
         if (System.getProperty("os.name", "").toLowerCase().contains("linux")) {
             // GTK set explicitly on Linux [i love you archwiki]
             LAF = "com.sun.java.swing.plaf.gtk.GTKLookAndFeel";
@@ -69,7 +72,8 @@ public class NotifPopup {
         };
         JOptionPane pane = new JOptionPane(
                 message, JOptionPane.QUESTION_MESSAGE, JOptionPane.DEFAULT_OPTION, null, choices, choices[0]);
-
+        inputTracker.setPaused(true);
+        log(start, "input tracking paused");
         try {
             SwingUtilities.invokeAndWait(() -> {
                 log(start, "on Swing thread, creating dialog");
@@ -94,6 +98,9 @@ public class NotifPopup {
         } catch (Exception e) {
             log(start, "error showing popup: " + e);
             e.printStackTrace();
+        } finally {
+            inputTracker.setPaused(false);
+            log(start, "input tracking resumed");
         }
         //return code with logging
         Object value = pane.getValue();
