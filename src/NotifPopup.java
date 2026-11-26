@@ -11,9 +11,19 @@ import javax.swing.JScrollPane;
 public class NotifPopup {
 
     // Ignoring after 10(default) seconds == cancel.
-    public static final int DEFAULT_TIMEOUT_MS = 10_000;
+    public static final int DEFAULT_TIMEOUT_MS = 25_000;
     private static final int MARGIN = 16; //play with this value to adjust screen safe are
     private volatile int timeoutMs  = DEFAULT_TIMEOUT_MS;; // changeable timeout setting
+
+    public int getTimeoutMs() {
+        return timeoutMs;
+    }
+    public void setTimeoutMs(int timeout) {
+        if (timeout <= 0) {
+            throw new IllegalArgumentException("Timeout must be positive");
+        }
+        this.timeoutMs = timeout;
+    }
 
     public NotifPopup() {
         String LAF;
