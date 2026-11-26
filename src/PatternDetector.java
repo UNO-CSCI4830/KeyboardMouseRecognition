@@ -2,60 +2,75 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class PatternDetector {
-    //arbitrary minimum
     private static final int MIN_MATCH_LENGTH = 3;
+
     private final SequenceStore sequenceStore;
+    private final InputTracker inputTracker;
     private final List<Action> buffer = new ArrayList<>();
     private int matchLength;
 
-    public PatternDetector(SequenceStore sequenceStore) {
+    public PatternDetector(SequenceStore sequenceStore, InputTracker inputTracker) {
         if (sequenceStore == null) {
             throw new IllegalArgumentException("Sequence store cannot be null");
         }
+        if (inputTracker == null) {
+            throw new IllegalArgumentException("Input tracker cannot be null");
+        }
+
         this.sequenceStore = sequenceStore;
+        this.inputTracker = inputTracker;
     }
 
-    //Adds an action and checks if the buffer actions start a saved sequence.
-    public Sequence processAction(Action action) {
-    if (action == null) {
-        throw new IllegalArgumentException("Action cannot be null");
+    public List<Sequence> processActionMatches(Action action) {
+        if (action == null) {
+            throw new IllegalArgumentException("Action cannot be null");
+        }
+
+        // Keeps the action in the buffer even when a held key blocks suggestions.
+
+        buffer.add(action);
+
+        if (!inputTracker.isKeyboardIdle()) {
+            matchLength = 0;
+            return new ArrayList<>();
+        }
+
+        List<Sequence> matches = findMatches();
+
+        // Remove the oldest action until the buffer can start a saved sequence.
+
+        while (matches.isEmpty() && !buffer.isEmpty()) {
+            buffer.remove(0);
+            matches = findMatches();
+        }
+
+        if (matches.isEmpty() || buffer.size() < MIN_MATCH_LENGTH) {
+            matchLength = 0;
+            return new ArrayList<>();
+        }
+
+        matchLength = buffer.size();
+        return matches;
     }
 
-    buffer.add(action);
-    Sequence match = findBestMatch();
-
-    // Remove the oldest action until the buffer can start a saved sequence.
-    while (match == null && !buffer.isEmpty()) {
-        buffer.remove(0);
-        match = findBestMatch();
-    }
-
-    if (match != null && buffer.size() < MIN_MATCH_LENGTH) {
-        match = null;
-    }
-
-    matchLength = (match == null) ? 0 : buffer.size();
-    return match;
-}
-    
-    //Gets the number of match actions so the remaining actions can replay.
     public int getMatchLength() {
         return matchLength;
     }
-    //Clears the collected actions for the current match
+
     public void clearBuffer() {
         buffer.clear();
         matchLength = 0;
     }
-    //Returns the longest saved sequence that starts with the buffer actions.
-    private Sequence findBestMatch() {
-        Sequence match = null;
+
+    private List<Sequence> findMatches() {
+        List<Sequence> matches = new ArrayList<>();
+
         for (Sequence sequence : sequenceStore.getSequences()) {
-            if (sequence.startsWith(buffer)
-                    && (match == null || sequence.size() > match.size())) {
-                match = sequence;
+            if (sequence.startsWith(buffer)) {
+                matches.add(sequence);
             }
         }
-        return match;
+
+        return matches;
     }
 }
